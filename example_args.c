@@ -36,12 +36,18 @@
 #define _ARG_CONV_double atof
 #define _ARG_CONV_str(x) x
 
+#define _ARG_IS_ALNUM_CHAR(c)   (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z') || ((c) >= '0' && (c) <= '9'))
+#define _ARG_STATIC_CHECK(TYPE, NAME, SHORT, NEED, DEF, TIPS) \
+    _Static_assert(_ARG_IS_ALNUM_CHAR(_ARG_CHARIFY(SHORT)), "Short opt char must be alphanumberic");
+
+
 #define _ARG_CASE(TYPE, NAME, SHORT, NEED, DEF, TIPS) \
     case _ARG_CHARIFY(SHORT): _ARG_IF_ELSE(NEED)(_args.NAME = _ARG_CONV_##TYPE(optarg), _args.NAME = 1); break;
 
 #define _ARG_PARSE_FUNC_NAME(LIST)  _arg_parse_##LIST
 
 #define ARG_PARSE_DEFINE(LIST) \
+    LIST(_ARG_STATIC_CHECK) \
     static ARG_STRUCT_TYPE(LIST) * _ARG_PARSE_FUNC_NAME(LIST)(int argc, char *argv[]) \
     { \
         static struct _ARG_STRUCT_NAME(LIST) _args = _ARG_STRUCT_INITIALIZER(LIST); \
