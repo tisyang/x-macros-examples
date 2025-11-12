@@ -78,7 +78,7 @@
 #define _ARG_CHECK_HINT(TYPE, HINT) (_ARG__T(TYPE) || !_ARG_HAS_HINT(HINT))
 
 #define _ARG_X_STATIC_CHECK(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-    _Static_assert(_ARG_IS_BLANK(SHORT) || _ARG_IS_ALNUM_CHAR(_ARG_CHARIFY(SHORT)), "Short opt char must be alphanumberic or left blank"); \
+    _Static_assert(!_ARG_IS_BLANK(SHORT) && _ARG_IS_ALNUM_CHAR(_ARG_CHARIFY(SHORT)), "Short opt char must be alphanumberic"); \
     _Static_assert(HINT != NULL, "Datahint should not be NULL use empty string"); \
     _Static_assert(_ARG_CHECK_HINT(TYPE, HINT), "Datahint invalid when TYPE == LIT"); \
 
