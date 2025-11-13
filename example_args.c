@@ -138,12 +138,12 @@
 
 // Use Example:
 
-// TYPE, short, long, arg hint, default, description
+// TYPE, LIMIT, NAME, SHORT, LONG, HINT, DEFAULT, DESCRIPTION
 #define APP_ARGS_LIST(X) \
-    X(LIT,   0,    help, 'h', "",        "",    0,  "show help") \
-    X(INT,   0, verbose, 'v', "", "<level>",    0,  "verbose level") \
-    X(FLOAT, 0, timeout, 't', "",  "<secs>",  0.0,  "timeout in secs") \
-    X(STR,   0,    from, 'f', "",  "<file>", NULL,  "file path")
+    X(LIT,   0,    help, 'h', "",        "",       0,  "show help") \
+    X(INT,   0, verbose, 'v', "", "<level>",       0,  "verbose level") \
+    X(FLOAT, 0, timeout, 't', "",  "<secs>",     0.0,  "timeout in secs") \
+    X(STR,   0,    from, 'f', "",  "<file>", "1.txt",  "file path")
 
 ARG_DEFINE(APP_ARGS_LIST);
 
