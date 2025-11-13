@@ -42,16 +42,16 @@
 #define _ARG_PFMT(TYPE)         _ARG_##TYPE##_FMT
 
 #define _ARG_FIELD_TYPE(TYPE)   _ARG_TYPE_##TYPE
-#define _ARG_FIELD_NAME(NAME)   arg_##NAME
-#define _ARG_FIELD_N_NAME(NAME) n_##NAME
+#define ARG_FIELD_NAME(NAME)   arg_##NAME
+#define ARG_FIELD_N_NAME(NAME) n_##NAME
 
 #define _ARG_X_STRUCT_FIELD(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
-    _ARG_FIELD_TYPE(TYPE)   _ARG_FIELD_NAME(NAME); \
-    int _ARG_FIELD_N_NAME(NAME);
+    _ARG_FIELD_TYPE(TYPE)   ARG_FIELD_NAME(NAME); \
+    int ARG_FIELD_N_NAME(NAME);
 
 #define _ARG_X_STRUCT_DEFAULT(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
-    ._ARG_FIELD_NAME(NAME) = DEF, \
-    ._ARG_FIELD_N_NAME(NAME) = 0,
+    .ARG_FIELD_NAME(NAME) = DEF, \
+    .ARG_FIELD_N_NAME(NAME) = 0,
 
 #define ARG_STRUCT_NAME(LIST)  st_##LIST##_name
 
@@ -73,10 +73,20 @@
     _Static_assert(_ARG_CHECK_HINT(TYPE, HINT), "Datahint invalid when TYPE == LIT"); \
 
 
+#define _ARG_X_USAGE(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    if (SHORT) {  \
+        printf("[-%c|%s%s] ", SHORT, #NAME, _ARG_HAS_HINT(HINT) ? "=" HINT : ""); \
+    }
+
+#define ARG_SHOW_USAGE(LIST, argv0) \
+    printf("Usage: %s ", argv0); \
+    LIST(_ARG_X_USAGE) \
+    printf("\n");
+
 #define _ARG_X_STRUCT_PRINT(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
     printf("  arg %s%s: \t-%c [%d]: ", #NAME, _ARG_HAS_HINT(HINT) ? "=" HINT : "", \
-           SHORT, p_arg->_ARG_FIELD_N_NAME(NAME)); \
-    printf(_ARG_PFMT(TYPE), p_arg->_ARG_FIELD_NAME(NAME)); \
+           SHORT, p_arg->ARG_FIELD_N_NAME(NAME)); \
+    printf(_ARG_PFMT(TYPE), p_arg->ARG_FIELD_NAME(NAME)); \
     printf(" (%s)\n", DESC);
 
 #define ARG_STRUCT_PRINT(LIST, STRUCT_P) \
@@ -87,11 +97,11 @@
 
 #define _ARG_X_PARSE_CASE(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
     case SHORT: \
-    if (MAXCNT <= 0  || p_arg->_ARG_FIELD_N_NAME(NAME) < MAXCNT) { \
+    if (MAXCNT <= 0  || p_arg->ARG_FIELD_N_NAME(NAME) < MAXCNT) { \
         _ARG_IF_ELSE(_ARG__NEED(TYPE), \
-                     p_arg->_ARG_FIELD_NAME(NAME) = _ARG_FROM_STR(TYPE, optarg), \
-                     p_arg->_ARG_FIELD_NAME(NAME) += 1); \
-        p_arg->_ARG_FIELD_N_NAME(NAME) += 1; \
+                     p_arg->ARG_FIELD_NAME(NAME) = _ARG_FROM_STR(TYPE, optarg), \
+                     p_arg->ARG_FIELD_NAME(NAME) += 1); \
+        p_arg->ARG_FIELD_N_NAME(NAME) += 1; \
     } else { \
         fprintf(stderr, "%s: option -%c,%s: too many arguments (Max %d)\n", argv[0], SHORT, #NAME, MAXCNT); \
         ret = -1; \
@@ -124,7 +134,7 @@
             default: \
                 ret = -1;  break; \
             } \
-            if (ret < 0) break; \
+            if (ret < 0) { ARG_SHOW_USAGE(LIST, argv[0]); break; } \
         } \
         return ret ?: optind ; \
     }
