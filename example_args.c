@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -11,12 +10,6 @@
 
 #define _ARG_IS_ALNUM_CHAR(c)       (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z') || ((c) >= '0' && (c) <= '9'))
 #define _ARG_IS_EMPTY_STR(s)        (sizeof(s) == 1)
-#define _ARG_IS_BLANK(c)            _ARG_IS_EMPTY_STR(#c)
-
-#define _ARG_CONCAT3_IMPL(x, y, z) x##y##z
-#define _ARG_CONCAT3(x, y, z) _ARG_CONCAT3_IMPL(x, y, z)
-#define _ARG_SQUOTE '
-#define _ARG_CHARIFY(c)  _ARG_CONCAT3(_ARG_SQUOTE, c, _ARG_SQUOTE)
 
 #define _ARG_LIT       0
 #define _ARG_INT       1
@@ -52,82 +45,94 @@
 #define _ARG_FIELD_NAME(NAME)   arg_##NAME
 #define _ARG_FIELD_N_NAME(NAME) n_##NAME
 
-#define _ARG_X_STRUCT_FIELD(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-        _ARG_FIELD_TYPE(TYPE)  _ARG_FIELD_NAME(NAME); \
-        int _ARG_FIELD_N_NAME(NAME);
+#define _ARG_X_STRUCT_FIELD(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    _ARG_FIELD_TYPE(TYPE)   _ARG_FIELD_NAME(NAME); \
+    int _ARG_FIELD_N_NAME(NAME);
 
-#define _ARG_X_STRUCT_DEFAULT(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-        DEF, 0,
+#define _ARG_X_STRUCT_DEFAULT(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    ._ARG_FIELD_NAME(NAME) = DEF, \
+    ._ARG_FIELD_N_NAME(NAME) = 0,
 
-#define _ARG_STRUCT_NAME(LIST)  st_##LIST##_name
+#define ARG_STRUCT_NAME(LIST)  st_##LIST##_name
 
 #define ARG_STRUCT_TYPE(LIST) \
-    struct _ARG_STRUCT_NAME(LIST) { \
+    struct ARG_STRUCT_NAME(LIST) { \
         LIST(_ARG_X_STRUCT_FIELD) \
-        \
-        int argc;   \
-        char **argv; \
-        int optind; \
     }
 
 #define ARG_STRUCT_INITIALIZER(LIST) \
     { LIST(_ARG_X_STRUCT_DEFAULT) }
 
 
-#define _ARG_HAS_HINT(HINT)         (HINT && !_ARG_IS_EMPTY_STR(HINT))
+#define _ARG_HAS_HINT(HINT)         (!_ARG_IS_EMPTY_STR(HINT))
 #define _ARG_CHECK_HINT(TYPE, HINT) (_ARG__T(TYPE) || !_ARG_HAS_HINT(HINT))
 
-#define _ARG_X_STATIC_CHECK(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-    _Static_assert(!_ARG_IS_BLANK(SHORT) && _ARG_IS_ALNUM_CHAR(_ARG_CHARIFY(SHORT)), "Short opt char must be alphanumberic"); \
+#define _ARG_X_STATIC_CHECK(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    _Static_assert(_ARG_IS_ALNUM_CHAR(SHORT), "Short opt char must be alphanumberic"); \
     _Static_assert(HINT != NULL, "Datahint should not be NULL use empty string"); \
     _Static_assert(_ARG_CHECK_HINT(TYPE, HINT), "Datahint invalid when TYPE == LIT"); \
 
 
-#define _ARG_X_STRUCT_PRINT(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-    printf("arg -%s, %s%s [%d]: ", #SHORT, #NAME, _ARG_HAS_HINT(HINT) ? "=" HINT : "", p_arg->_ARG_FIELD_N_NAME(NAME)); \
+#define _ARG_X_STRUCT_PRINT(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    printf("  arg %s%s: \t-%c [%d]: ", #NAME, _ARG_HAS_HINT(HINT) ? "=" HINT : "", \
+           SHORT, p_arg->_ARG_FIELD_N_NAME(NAME)); \
     printf(_ARG_PFMT(TYPE), p_arg->_ARG_FIELD_NAME(NAME)); \
     printf(" (%s)\n", DESC);
 
 #define ARG_STRUCT_PRINT(LIST, STRUCT_P) \
     do { \
-        struct _ARG_STRUCT_NAME(LIST) *p_arg = STRUCT_P; \
-        printf("argc=%d optind=%d\n", p_arg->argc, p_arg->optind); \
+        struct ARG_STRUCT_NAME(LIST) *p_arg = STRUCT_P; \
         LIST(_ARG_X_STRUCT_PRINT) \
     } while (0)
 
-#define _ARG_X_PARSE_CASE(TYPE, SHORT, NAME, HINT, DEF, DESC) \
-    case _ARG_CHARIFY(SHORT): _ARG_IF_ELSE(_ARG__NEED(TYPE), \
-                                           (p_arg->_ARG_FIELD_NAME(NAME) = _ARG_FROM_STR(TYPE, optarg), p_arg->_ARG_FIELD_N_NAME(NAME) += 1), \
-                                           (p_arg->_ARG_FIELD_NAME(NAME) += 1, p_arg->_ARG_FIELD_N_NAME(NAME) += 1));  \
-                                           break;
+#define _ARG_X_PARSE_CASE(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
+    case SHORT: \
+    if (MAXCNT <= 0  || p_arg->_ARG_FIELD_N_NAME(NAME) < MAXCNT) { \
+        _ARG_IF_ELSE(_ARG__NEED(TYPE), \
+                     p_arg->_ARG_FIELD_NAME(NAME) = _ARG_FROM_STR(TYPE, optarg), \
+                     p_arg->_ARG_FIELD_NAME(NAME) += 1); \
+        p_arg->_ARG_FIELD_N_NAME(NAME) += 1; \
+    } else { \
+        fprintf(stderr, "%s: option -%c,%s: too many arguments (Max %d)\n", argv[0], SHORT, #NAME, MAXCNT); \
+        ret = -1; \
+    }\
+    break;
 
-#define _ARG_X_PARSE_OPT(TYPE, SHORT, NAME, HINT, DEF, DESC) \
+#define _ARG_X_PARSE_OPT(TYPE, MAXCNT, NAME, SHORT, LONG, HINT, DEF, DESC) \
     _ARG_IF_ELSE(_ARG__NEED(TYPE), #SHORT ":", #SHORT)
 
 #define _ARG_PARSE_FUNC_NAME(LIST)  _arg_parse_##LIST
 
 #define _ARG_PARSE_DEFINE(LIST) \
-    static int _ARG_PARSE_FUNC_NAME(LIST)(int argc, char *argv[], ARG_STRUCT_TYPE(LIST) *p_arg) \
+    static int _ARG_PARSE_FUNC_NAME(LIST)(int argc, char *argv[], struct ARG_STRUCT_NAME(LIST) *p_arg) \
     { \
         int ret = 0; \
         int c; \
         optind = 1; \
-        while ((c = getopt(argc, argv, LIST(_ARG_X_PARSE_OPT))) != -1) { \
+        char opts[] = LIST(_ARG_X_PARSE_OPT); \
+        do { \
+            char *src = opts, *dst = opts; \
+            while (*src) { \
+                if (*src != '\'')   *dst++ = *src; \
+                src++; \
+            } \
+            *dst = '\0'; \
+        } while (0); \
+        while ((c = getopt(argc, argv, opts)) != -1) { \
             switch (c) { \
                 LIST(_ARG_X_PARSE_CASE) \
             default: \
                 ret = -1;  break; \
             } \
+            if (ret < 0) break; \
         } \
-        p_arg->argc = argc; \
-        p_arg->argv = argv; \
-        p_arg->optind = optind; \
-        return ret; \
+        return ret ?: optind ; \
     }
 
 #define ARG_PARSE(LIST, ...)    _ARG_PARSE_FUNC_NAME(LIST)(__VA_ARGS__)
 
 #define ARG_DEFINE(LIST) \
+    ARG_STRUCT_TYPE(LIST); \
     LIST(_ARG_X_STATIC_CHECK) \
     _ARG_PARSE_DEFINE(LIST)
 
@@ -135,18 +140,21 @@
 
 // TYPE, short, long, arg hint, default, description
 #define APP_ARGS_LIST(X) \
-    X(LIT,   h,      help,        "",    0,  "show help") \
-    X(INT,   v,   verbose, "<level>",    0,  "verbose level") \
-    X(FLOAT, t,   timeout,  "<secs>",  0.0,  "timeout secs") \
-    X(STR,   f, from_file,  "<file>", NULL,  "data file")
+    X(LIT,   0,    help, 'h', "",        "",    0,  "show help") \
+    X(INT,   0, verbose, 'v', "", "<level>",    0,  "verbose level") \
+    X(FLOAT, 0, timeout, 't', "",  "<secs>",  0.0,  "timeout in secs") \
+    X(STR,   0,    from, 'f', "",  "<file>", NULL,  "file path")
 
 ARG_DEFINE(APP_ARGS_LIST);
 
 int main(int argc, char **argv)
 {
-    ARG_STRUCT_TYPE(APP_ARGS_LIST) arg = ARG_STRUCT_INITIALIZER(APP_ARGS_LIST);
+    struct ARG_STRUCT_NAME(APP_ARGS_LIST) arg = ARG_STRUCT_INITIALIZER(APP_ARGS_LIST);
     int ret = ARG_PARSE(APP_ARGS_LIST, argc, argv, &arg);
     printf("ARG_PARSE ret=%d\n", ret);
-    ARG_STRUCT_PRINT(APP_ARGS_LIST, &arg);
+    if (ret > 0) {
+        printf("optind =%d\n", ret);
+        ARG_STRUCT_PRINT(APP_ARGS_LIST, &arg);
+    }
     return 0;
 }
